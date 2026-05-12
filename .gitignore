@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+
+# Streamlit cache/state
+.streamlit/
+
+# Model weights and artifacts
+*.pt
+*.pth
+*.ckpt
+weights/
+checkpoints/
+
+# Temporary uploads / generated masks
+tmp/
+temp/
+*.tmp
+*_mask.png
+uploads/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
