@@ -4,3 +4,4 @@ numpy
 Pillow
 pydicom
 opencv-python-headless
+matplotlib
