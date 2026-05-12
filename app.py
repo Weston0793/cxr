@@ -1,32 +1,18 @@
 import io
 import tempfile
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import streamlit as st
 from PIL import Image
 
-import pydicom
+try:
+    import pydicom
+except Exception:  # optional at runtime for non-DICOM use
+    pydicom = None
 
-
-
-def resolve_cxas_class():
-    import colorcet as cc
-
-    cmap = getattr(cc.cm, "glasbey_bw_minc_20", None)
-    if cmap is not None and not callable(cmap) and hasattr(cmap, "colors"):
-        colors = np.asarray(cmap.colors)
-
-        def _indexed_color(i: int):
-            return tuple(colors[int(i) % len(colors)])
-
-        cc.cm.glasbey_bw_minc_20 = _indexed_color
-
-    from cxas import CXAS
-
-    return CXAS
-
+from cxas import CXAS
 
 st.set_page_config(page_title="CXR Anatomy Segmentation (CXAS)", layout="wide")
 
@@ -84,7 +70,6 @@ def infer_device(use_gpu: bool) -> str:
 
 @st.cache_resource(show_spinner=True)
 def load_model(device: str):
-    CXAS = resolve_cxas_class()
     return CXAS(device=device)
 
 
@@ -98,6 +83,8 @@ def load_uploaded_image(uploaded_file) -> Tuple[np.ndarray, Path]:
     file_path.write_bytes(uploaded_file.getbuffer())
 
     if extension == "dcm":
+        if pydicom is None:
+            raise RuntimeError("pydicom is required to read DICOM files.")
         ds = pydicom.dcmread(str(file_path))
         pixel = ds.pixel_array.astype(np.float32)
         pixel -= pixel.min()
