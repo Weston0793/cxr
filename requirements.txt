@@ -3,3 +3,4 @@ cxas
 numpy
 Pillow
 pydicom
+matplotlib
