@@ -13,6 +13,20 @@ import pydicom
 
 def resolve_cxas_class():
     import colorcet as cc
+    from matplotlib.colors import ListedColormap
+
+    if not hasattr(ListedColormap, "__call__"):
+        def _lc_call(self, x, alpha=None, bytes=False):
+            values = np.asarray(x)
+            if np.issubdtype(values.dtype, np.integer):
+                idx = np.mod(values, len(self.colors))
+                picked = np.asarray(self.colors)[idx]
+                return picked
+            mapped = np.clip(values, 0, 1)
+            idx = np.minimum((mapped * (len(self.colors) - 1)).astype(int), len(self.colors) - 1)
+            return np.asarray(self.colors)[idx]
+
+        ListedColormap.__call__ = _lc_call
 
     cmap = getattr(cc.cm, "glasbey_bw_minc_20", None)
     if cmap is not None and not callable(cmap) and hasattr(cmap, "colors"):
