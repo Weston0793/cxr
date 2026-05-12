@@ -15,11 +15,16 @@ def resolve_cxas_class():
     import colorcet as cc
     from matplotlib.colors import ListedColormap
 
+    sample = ListedColormap([[0, 0, 0], [1, 1, 1]])
+    if not callable(sample):
     if not hasattr(ListedColormap, "__call__"):
         def _lc_call(self, x, alpha=None, bytes=False):
             values = np.asarray(x)
             if np.issubdtype(values.dtype, np.integer):
                 idx = np.mod(values, len(self.colors))
+            else:
+                mapped = np.clip(values, 0, 1)
+                idx = np.minimum((mapped * (len(self.colors) - 1)).astype(int), len(self.colors) - 1)
                 picked = np.asarray(self.colors)[idx]
                 return picked
             mapped = np.clip(values, 0, 1)
@@ -212,6 +217,20 @@ device = infer_device(use_gpu)
 if use_gpu and device == "cpu":
     st.sidebar.warning("CUDA unavailable in this environment. Falling back to CPU.")
 
+model = None
+model_load_error = None
+try:
+    model = load_model(device)
+except Exception as exc:
+    model_load_error = exc
+
+if model_load_error is not None:
+    st.error(
+        "Model failed to load. If you are deploying on Streamlit Cloud, install `opencv-python-headless` "
+        "(and avoid GUI OpenCV builds requiring `libGL.so.1`)."
+    )
+    st.exception(model_load_error)
+    st.stop()
 model = load_model(device)
 
 uploaded = st.file_uploader("Upload a chest X-ray", type=sorted(ALLOWED_EXTENSIONS))

@@ -29,3 +29,8 @@ streamlit run app.py
 - This app performs **inference only** (no training).
 - The model is cached with `st.cache_resource` to avoid repeated loads.
 - Uploaded files are written into temporary folders during processing.
+
+
+## Deployment note
+
+If deployment errors mention `libGL.so.1`, ensure `opencv-python-headless` is installed (it is included in `requirements.txt`).
