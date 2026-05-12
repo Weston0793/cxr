@@ -15,6 +15,17 @@ def resolve_cxas_class():
     import colorcet as cc
     from matplotlib.colors import ListedColormap
 
+    def _lc_call(self, x, alpha=None, bytes=False):
+        values = np.asarray(x)
+        if np.issubdtype(values.dtype, np.integer):
+            idx = np.mod(values, len(self.colors))
+        else:
+            mapped = np.clip(values, 0, 1)
+            idx = np.minimum((mapped * (len(self.colors) - 1)).astype(int), len(self.colors) - 1)
+        return np.asarray(self.colors)[idx]
+
+    sample = ListedColormap([[0, 0, 0], [1, 1, 1]])
+    if not callable(sample):
     sample = ListedColormap([[0, 0, 0], [1, 1, 1]])
     if not callable(sample):
     if not hasattr(ListedColormap, "__call__"):
