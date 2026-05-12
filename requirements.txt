@@ -1,0 +1,5 @@
+streamlit
+cxas
+numpy
+Pillow
+pydicom
