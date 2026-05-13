@@ -86,6 +86,8 @@ def resolve_cxas_class():
 st.set_page_config(page_title="CXR Anatomy Segmentation (CXAS)", layout="wide")
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "dcm"}
+MAX_UPLOAD_MB = 25
+MAX_INFERENCE_SIDE = 1536
 
 GROUP_KEYWORDS: Dict[str, Sequence[str]] = {
     "airways_lungs": (
@@ -196,6 +198,18 @@ def load_uploaded_image(uploaded_file) -> Tuple[np.ndarray, Path]:
         image = np.array(Image.open(io.BytesIO(uploaded_file.getvalue())).convert("L"))
 
     return image, file_path
+
+
+def prepare_for_inference(image: np.ndarray, max_side: int = MAX_INFERENCE_SIDE) -> np.ndarray:
+    """Bound image size to reduce OOM risk on Streamlit Community Cloud."""
+    h, w = image.shape[:2]
+    longest = max(h, w)
+    if longest <= max_side:
+        return image
+    scale = max_side / float(longest)
+    new_size = (max(1, int(round(w * scale))), max(1, int(round(h * scale))))
+    resized = Image.fromarray(image).resize(new_size, Image.Resampling.BILINEAR)
+    return np.asarray(resized, dtype=np.uint8)
 
 
 def _get_class_names(model) -> List[str]:
@@ -364,16 +378,39 @@ if model_load_error is not None:
     st.exception(model_load_error)
     st.stop()
 
-uploaded = st.file_uploader("Upload a chest X-ray", type=sorted(ALLOWED_EXTENSIONS))
+uploaded = st.file_uploader(
+    "Upload a chest X-ray",
+    type=sorted(ALLOWED_EXTENSIONS),
+    max_upload_size=MAX_UPLOAD_MB,
+    help=(
+        "Large images can exceed Streamlit Community Cloud memory limits and restart the app. "
+        f"Per-file upload is limited to {MAX_UPLOAD_MB} MB."
+    ),
+)
 
 if uploaded is not None:
-    with st.spinner("Loading image and running segmentation..."):
-        image_gray, image_path = load_uploaded_image(uploaded)
-        prediction = _run_inference(model, image_path, image_gray)
-        class_names = _get_class_names(model)
-        mask_tensor = _extract_mask_tensor(prediction)
-        masks_cls_first = _to_class_first(mask_tensor, len(class_names))
-        grouped_masks = build_group_masks(class_names, masks_cls_first)
+    try:
+        with st.spinner("Loading image and running segmentation..."):
+            image_gray, image_path = load_uploaded_image(uploaded)
+            image_for_inference = prepare_for_inference(image_gray)
+            if image_for_inference.shape != image_gray.shape:
+                st.info(
+                    f"Resized image from {image_gray.shape[1]}x{image_gray.shape[0]} to "
+                    f"{image_for_inference.shape[1]}x{image_for_inference.shape[0]} for stable inference."
+                )
+            prediction = _run_inference(model, image_path, image_for_inference)
+            class_names = _get_class_names(model)
+            mask_tensor = _extract_mask_tensor(prediction)
+            masks_cls_first = _to_class_first(mask_tensor, len(class_names))
+            grouped_masks = build_group_masks(class_names, masks_cls_first)
+    except Exception as exc:
+        st.error("Segmentation failed. See details below.")
+        st.exception(exc)
+        st.info(
+            "If the app stops without a Python traceback, it is usually an out-of-memory restart "
+            "on Streamlit Community Cloud. Try a smaller image and keep GPU disabled."
+        )
+        st.stop()
 
     overlay_air = overlay_mask(image_gray, grouped_masks["airways_lungs"], GROUP_COLORS["airways_lungs"])
     overlay_card = overlay_mask(image_gray, grouped_masks["cardiovascular"], GROUP_COLORS["cardiovascular"])
