@@ -1,4 +1,5 @@
 import io
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -9,6 +10,7 @@ import streamlit as st
 from PIL import Image
 
 import pydicom
+import requests
 
 
 
@@ -88,6 +90,8 @@ st.set_page_config(page_title="CXR Anatomy Segmentation (CXAS)", layout="wide")
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "dcm"}
 MAX_UPLOAD_MB = 25
 MAX_INFERENCE_SIDE = 1536
+DEFAULT_GCS_BUCKET = "tricxr-4af8a.firebasestorage.app"
+DEFAULT_GCS_OBJECT = "UNet_resnet50_default.pth"
 
 GROUP_KEYWORDS: Dict[str, Sequence[str]] = {
     "airways_lungs": (
@@ -139,8 +143,60 @@ def infer_device(use_gpu: bool) -> str:
         return "cpu"
 
 
+def ensure_weights_available() -> None:
+    """Optionally stage CXAS weights from a custom source before CXAS init."""
+    weight_file = Path.home() / ".cxas" / "weights" / "UNet_ResNet50_default.pth"
+    weight_file.parent.mkdir(parents=True, exist_ok=True)
+    if weight_file.exists() and weight_file.stat().st_size > 100_000_000:
+        return
+
+    local_source = os.getenv("CXAS_WEIGHTS_PATH", "").strip()
+    if local_source:
+        src = Path(local_source).expanduser()
+        if src.exists() and src.is_file():
+            weight_file.write_bytes(src.read_bytes())
+            return
+
+    def _secret_token() -> str:
+        token = os.getenv("FIREBASE_ACCESS_TOKEN", "").strip()
+        if token:
+            return token
+        try:
+            return str(st.secrets.get("firebase", {}).get("access_token", "")).strip()
+        except Exception:
+            return ""
+
+    def _download_from_gcs(bucket: str, obj: str, token: str) -> bool:
+        object_name = obj.lstrip("/")
+        url = f"https://storage.googleapis.com/storage/v1/b/{bucket}/o/{object_name}?alt=media"
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        with requests.get(url, stream=True, timeout=120, headers=headers) as response:
+            if response.status_code != 200:
+                return False
+            with weight_file.open("wb") as f:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+        return weight_file.exists() and weight_file.stat().st_size > 100_000_000
+
+    gcs_bucket = os.getenv("CXAS_GCS_BUCKET", DEFAULT_GCS_BUCKET).strip()
+    gcs_object = os.getenv("CXAS_GCS_OBJECT", DEFAULT_GCS_OBJECT).strip()
+    if gcs_bucket and gcs_object and _download_from_gcs(gcs_bucket, gcs_object, _secret_token()):
+        return
+
+    remote_source = os.getenv("CXAS_WEIGHTS_URL", "").strip()
+    if remote_source:
+        with requests.get(remote_source, stream=True, timeout=120) as response:
+            response.raise_for_status()
+            with weight_file.open("wb") as f:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+
+
 @st.cache_resource(show_spinner=True)
 def load_model(device: str):
+    ensure_weights_available()
     CXAS = resolve_cxas_class()
 
     def _build_model():
@@ -444,3 +500,5 @@ if uploaded is not None:
             file_name=filename,
             mime="image/png",
         )
+requirements.txt
+requirements.txt
