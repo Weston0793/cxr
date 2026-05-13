@@ -171,9 +171,35 @@ def _get_class_names(model) -> List[str]:
     raise RuntimeError("Could not discover class names from CXAS model object.")
 
 
-def _run_inference(model, image_path: Path):
+def _run_inference(model, image_path: Path, image_gray: np.ndarray):
     input_path = str(image_path)
     attempted = []
+
+    if hasattr(model, "forward"):
+        try:
+            import torch
+
+            x = torch.from_numpy(image_gray.astype(np.float32) / 255.0).unsqueeze(0).unsqueeze(0)
+            with torch.no_grad():
+                return model(x)
+        except Exception as exc:
+            attempted.append(f"forward(tensor): {exc}")
+
+    if hasattr(model, "process_file"):
+        out_dir = Path(tempfile.mkdtemp(prefix="cxas_out_"))
+        fn = getattr(model, "process_file")
+        for args, kwargs in [
+            ((input_path, str(out_dir)), {}),
+            ((), {"input_path": input_path, "output_path": str(out_dir)}),
+            ((), {"input_file": input_path, "output_dir": str(out_dir)}),
+            ((input_path,), {}),
+        ]:
+            try:
+                result = fn(*args, **kwargs)
+                if result is not None:
+                    return result
+            except Exception as exc:
+                attempted.append(f"process_file args={args} kwargs={kwargs}: {exc}")
 
     def _try_call(fn, name: str):
         call_variants = [
@@ -304,7 +330,7 @@ uploaded = st.file_uploader("Upload a chest X-ray", type=sorted(ALLOWED_EXTENSIO
 if uploaded is not None:
     with st.spinner("Loading image and running segmentation..."):
         image_gray, image_path = load_uploaded_image(uploaded)
-        prediction = _run_inference(model, image_path)
+        prediction = _run_inference(model, image_path, image_gray)
         class_names = _get_class_names(model)
         mask_tensor = _extract_mask_tensor(prediction)
         masks_cls_first = _to_class_first(mask_tensor, len(class_names))
