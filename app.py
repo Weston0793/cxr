@@ -98,7 +98,16 @@ def infer_device(use_gpu: bool) -> str:
 @st.cache_resource(show_spinner=True)
 def load_model(device: str):
     CXAS = resolve_cxas_class()
-    return CXAS(device=device)
+    try:
+        return CXAS(device=device)
+    except TypeError:
+        model = CXAS()
+        if hasattr(model, "to"):
+            try:
+                model = model.to(device)
+            except Exception:
+                pass
+        return model
 
 
 def load_uploaded_image(uploaded_file) -> Tuple[np.ndarray, Path]:
