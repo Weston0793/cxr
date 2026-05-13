@@ -36,6 +36,16 @@ def resolve_cxas_class():
 
         cc.cm.glasbey_bw_minc_20 = _indexed_color
 
+    import gdown
+
+    _gdown_download = gdown.download
+
+    def _download_compat(*args, **kwargs):
+        kwargs.pop("fuzzy", None)
+        return _gdown_download(*args, **kwargs)
+
+    gdown.download = _download_compat
+
     from cxas import CXAS
 
     return CXAS
