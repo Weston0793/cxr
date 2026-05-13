@@ -5,3 +5,4 @@ Pillow
 pydicom
 opencv-python-headless
 matplotlib
+gdown<5
