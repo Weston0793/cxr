@@ -36,6 +36,20 @@ def resolve_cxas_class():
 
         cc.cm.glasbey_bw_minc_20 = _indexed_color
 
+    import argparse
+    import torch
+
+    if hasattr(torch, "serialization") and hasattr(torch.serialization, "add_safe_globals"):
+        torch.serialization.add_safe_globals([argparse.Namespace])
+
+    _torch_load = torch.load
+
+    def _torch_load_compat(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return _torch_load(*args, **kwargs)
+
+    torch.load = _torch_load_compat
+
     import gdown
 
     _gdown_download = gdown.download
