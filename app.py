@@ -330,24 +330,15 @@ if uploaded is not None:
         st.image(combined, caption="Combined groups", use_container_width=True)
 
     st.subheader("Download group masks")
-    d1, d2, d3 = st.columns(3)
-    d1.download_button(
-        "Download airways + lungs mask",
-        data=mask_to_png_bytes(grouped_masks["airways_lungs"]),
-        file_name="airways_lungs_mask.png",
-        mime="image/png",
-    )
-    d2.download_button(
-        "Download cardiovascular mask",
-        data=mask_to_png_bytes(grouped_masks["cardiovascular"]),
-        file_name="cardiovascular_mask.png",
-        mime="image/png",
-    )
-    d3.download_button(
-        "Download skeletal mask",
-        data=mask_to_png_bytes(grouped_masks["skeletal"]),
-        file_name="skeletal_mask.png",
-        mime="image/png",
-    )
-        mime="image/png",
-    )
+    download_specs = [
+        ("Download airways + lungs mask", "airways_lungs", "airways_lungs_mask.png"),
+        ("Download cardiovascular mask", "cardiovascular", "cardiovascular_mask.png"),
+        ("Download skeletal mask", "skeletal", "skeletal_mask.png"),
+    ]
+    for col, (label, key, filename) in zip(st.columns(3), download_specs):
+        col.download_button(
+            label,
+            data=mask_to_png_bytes(grouped_masks[key]),
+            file_name=filename,
+            mime="image/png",
+        )
