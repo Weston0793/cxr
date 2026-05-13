@@ -172,14 +172,51 @@ def _get_class_names(model) -> List[str]:
 
 
 def _run_inference(model, image_path: Path):
-    for method in ("segment", "predict", "infer", "__call__"):
+    input_path = str(image_path)
+    attempted = []
+
+    def _try_call(fn, name: str):
+        call_variants = [
+            ((), {"image_path": input_path}),
+            ((), {"file_path": input_path}),
+            ((), {"input_path": input_path}),
+            ((), {"path": input_path}),
+            ((input_path,), {}),
+            (([input_path],), {}),
+        ]
+        for args, kwargs in call_variants:
+            try:
+                return fn(*args, **kwargs)
+            except TypeError as exc:
+                attempted.append(f"{name}{args or ''}{kwargs or ''}: {exc}")
+                continue
+        return None
+
+    method_candidates = (
+        "segment",
+        "predict",
+        "infer",
+        "inference",
+        "run",
+        "run_inference",
+        "predict_file",
+        "process",
+        "__call__",
+    )
+
+    for method in method_candidates:
         if hasattr(model, method):
             fn = getattr(model, method)
-            try:
-                return fn(str(image_path))
-            except TypeError:
-                continue
-    raise RuntimeError("Could not find usable inference method on CXAS model.")
+            result = _try_call(fn, method)
+            if result is not None:
+                return result
+
+    available = [name for name in dir(model) if not name.startswith("_")]
+    raise RuntimeError(
+        "Could not find usable inference method on CXAS model. "
+        f"Tried methods: {method_candidates}. Available attributes: {available[:40]}. "
+        f"TypeErrors: {attempted[:6]}"
+    )
 
 
 def _extract_mask_tensor(prediction) -> np.ndarray:
@@ -310,5 +347,7 @@ if uploaded is not None:
         "Download skeletal mask",
         data=mask_to_png_bytes(grouped_masks["skeletal"]),
         file_name="skeletal_mask.png",
+        mime="image/png",
+    )
         mime="image/png",
     )
