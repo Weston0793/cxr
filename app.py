@@ -142,16 +142,28 @@ def load_model(device: str):
     CXAS = resolve_cxas_class()
 
     def _build_model():
-        try:
-            return CXAS(device=device)
-        except TypeError:
-            model_local = CXAS()
-            if hasattr(model_local, "to"):
-                try:
-                    model_local = model_local.to(device)
-                except Exception:
-                    pass
-            return model_local
+        init_attempts = [
+            {"device": device},
+            {"gpus": [device]},
+            {"gpus": ["cpu"]},
+            {},
+        ]
+        last_exc = None
+        for kwargs in init_attempts:
+            try:
+                model_local = CXAS(**kwargs)
+                if hasattr(model_local, "to"):
+                    try:
+                        model_local = model_local.to(device)
+                    except Exception:
+                        pass
+                return model_local
+            except TypeError as exc:
+                last_exc = exc
+                continue
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("Unable to initialize CXAS with known constructor signatures.")
 
     try:
         return _build_model()
@@ -395,3 +407,5 @@ if uploaded is not None:
             file_name=filename,
             mime="image/png",
         )
+requirements.txt
+requirements.txt
