@@ -46,6 +46,9 @@ def resolve_cxas_class():
 
     def _torch_load_compat(*args, **kwargs):
         kwargs.setdefault("weights_only", False)
+        map_location = kwargs.get("map_location")
+        if not torch.cuda.is_available() and map_location == "cuda":
+            kwargs["map_location"] = "cpu"
         return _torch_load(*args, **kwargs)
 
     torch.load = _torch_load_compat
