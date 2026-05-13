@@ -25,24 +25,7 @@ def resolve_cxas_class():
         return np.asarray(self.colors)[idx]
 
     sample = ListedColormap([[0, 0, 0], [1, 1, 1]])
-    if not callable(sample):
-    sample = ListedColormap([[0, 0, 0], [1, 1, 1]])
-    if not callable(sample):
-    if not hasattr(ListedColormap, "__call__"):
-        def _lc_call(self, x, alpha=None, bytes=False):
-            values = np.asarray(x)
-            if np.issubdtype(values.dtype, np.integer):
-                idx = np.mod(values, len(self.colors))
-            else:
-                mapped = np.clip(values, 0, 1)
-                idx = np.minimum((mapped * (len(self.colors) - 1)).astype(int), len(self.colors) - 1)
-                picked = np.asarray(self.colors)[idx]
-                return picked
-            mapped = np.clip(values, 0, 1)
-            idx = np.minimum((mapped * (len(self.colors) - 1)).astype(int), len(self.colors) - 1)
-            return np.asarray(self.colors)[idx]
-
-        ListedColormap.__call__ = _lc_call
+    ListedColormap.__call__ = _lc_call if not callable(sample) else ListedColormap.__call__
 
     cmap = getattr(cc.cm, "glasbey_bw_minc_20", None)
     if cmap is not None and not callable(cmap) and hasattr(cmap, "colors"):
@@ -242,7 +225,6 @@ if model_load_error is not None:
     )
     st.exception(model_load_error)
     st.stop()
-model = load_model(device)
 
 uploaded = st.file_uploader("Upload a chest X-ray", type=sorted(ALLOWED_EXTENSIONS))
 
