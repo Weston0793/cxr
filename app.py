@@ -43,16 +43,18 @@ def resolve_cxas_class():
     if hasattr(torch, "serialization") and hasattr(torch.serialization, "add_safe_globals"):
         torch.serialization.add_safe_globals([argparse.Namespace])
 
-    _torch_load = torch.load
+    if not getattr(torch.load, "_cxas_compat", False):
+        _torch_load = torch.load
 
-    def _torch_load_compat(*args, **kwargs):
-        kwargs.setdefault("weights_only", False)
-        map_location = kwargs.get("map_location")
-        if not torch.cuda.is_available() and map_location == "cuda":
-            kwargs["map_location"] = "cpu"
-        return _torch_load(*args, **kwargs)
+        def _torch_load_compat(*args, **kwargs):
+            kwargs.setdefault("weights_only", False)
+            map_location = kwargs.get("map_location")
+            if not torch.cuda.is_available() and map_location == "cuda":
+                kwargs["map_location"] = "cpu"
+            return _torch_load(*args, **kwargs)
 
-    torch.load = _torch_load_compat
+        _torch_load_compat._cxas_compat = True
+        torch.load = _torch_load_compat
 
     import gdown
 
@@ -138,16 +140,28 @@ def infer_device(use_gpu: bool) -> str:
 @st.cache_resource(show_spinner=True)
 def load_model(device: str):
     CXAS = resolve_cxas_class()
+
+    def _build_model():
+        try:
+            return CXAS(device=device)
+        except TypeError:
+            model_local = CXAS()
+            if hasattr(model_local, "to"):
+                try:
+                    model_local = model_local.to(device)
+                except Exception:
+                    pass
+            return model_local
+
     try:
-        return CXAS(device=device)
-    except TypeError:
-        model = CXAS()
-        if hasattr(model, "to"):
-            try:
-                model = model.to(device)
-            except Exception:
-                pass
-        return model
+        return _build_model()
+    except Exception as exc:
+        if "invalid load key" not in str(exc):
+            raise
+        weights_dir = Path.home() / ".cxas" / "weights"
+        for f in weights_dir.glob("*.pth"):
+            f.unlink(missing_ok=True)
+        return _build_model()
 
 
 def load_uploaded_image(uploaded_file) -> Tuple[np.ndarray, Path]:
