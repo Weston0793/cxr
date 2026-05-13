@@ -407,5 +407,3 @@ if uploaded is not None:
             file_name=filename,
             mime="image/png",
         )
-requirements.txt
-requirements.txt
