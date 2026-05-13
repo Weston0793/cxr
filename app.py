@@ -1,4 +1,5 @@
 import io
+import re
 import tempfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
@@ -57,8 +58,20 @@ def resolve_cxas_class():
 
     _gdown_download = gdown.download
 
+    def _normalize_drive_url(url: str) -> str:
+        match = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
+        if match:
+            return f"https://drive.google.com/uc?id={match.group(1)}"
+        return url
+
     def _download_compat(*args, **kwargs):
-        kwargs.pop("fuzzy", None)
+        fuzzy_requested = bool(kwargs.pop("fuzzy", False))
+        if args:
+            url = args[0]
+            if fuzzy_requested and isinstance(url, str) and "drive.google.com" in url:
+                args = (_normalize_drive_url(url),) + tuple(args[1:])
+        elif fuzzy_requested and isinstance(kwargs.get("url"), str):
+            kwargs["url"] = _normalize_drive_url(kwargs["url"])
         return _gdown_download(*args, **kwargs)
 
     gdown.download = _download_compat
